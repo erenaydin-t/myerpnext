@@ -17,12 +17,14 @@ following apps:
 | Group              | Apps                                                   |
 | ------------------ | ------------------------------------------------------ |
 | Frappe core (v16)  | `payments`, `hrms`, `lending`, `crm`, `telephony`      |
-| Frappe independent | `helpdesk`, `lms`, `insights`, `wiki`, `drive` ⚠️       |
+| Frappe independent | `helpdesk`, `lms`, `insights`, `wiki`                  |
 | Third-party        | `erpnext_extensions`, `persian_calendar`, `raven`, `dms`, `logto_bridge` |
 
-> ⚠️ **`drive` is upstream-beta** and intentionally **not** installed by
-> `create-site` on first boot. The binary is in the image so you can opt in
-> per-site for evaluation: `docker compose exec backend bench --site <site> install-app drive`. Do not enable it on a production tenant until upstream marks it stable.
+> ⚠️ **`frappe/drive` is excluded from the image.** Drive ships a yarn
+> `postinstall` hook (`scripts/install-pnpm.sh`) that hard-pins pnpm 11
+> via corepack — pnpm 11 makes `ERR_PNPM_IGNORED_BUILDS` a fatal install
+> error, so the build aborts. Drive is upstream-beta anyway. Re-add it to
+> the `Dockerfile` and `apps.json` once upstream stabilises that script.
 
 The full list with branches is in [`apps.json`](apps.json).
 

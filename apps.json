@@ -36,10 +36,6 @@
     "branch": "master"
   },
   {
-    "url": "https://github.com/frappe/drive",
-    "branch": "main"
-  },
-  {
     "url": "https://github.com/sfarbod/ERPNext_Extensions",
     "branch": "main"
   },

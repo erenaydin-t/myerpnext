@@ -92,8 +92,13 @@ RUN bench get-app --branch develop --skip-assets https://github.com/frappe/lendi
     bench get-app --skip-assets https://github.com/frappe/helpdesk && \
     bench get-app --skip-assets https://github.com/frappe/lms && \
     bench get-app --skip-assets https://github.com/frappe/insights && \
-    bench get-app --skip-assets https://github.com/frappe/wiki && \
-    bench get-app --skip-assets https://github.com/frappe/drive
+    bench get-app --skip-assets https://github.com/frappe/wiki
+# NOTE: frappe/drive intentionally NOT installed here. Drive ships a yarn
+# postinstall hook (scripts/install-pnpm.sh) that hard-pins pnpm 11 via
+# corepack, overriding our global pin and reintroducing the
+# ERR_PNPM_IGNORED_BUILDS fatal error. Drive is upstream-beta anyway; the
+# tradeoff is not worth blocking the build. To re-enable once upstream
+# stabilises, add it back here and to apps.json.
 
 # Group 3: Third-party / custom apps
 RUN bench get-app --skip-assets https://github.com/sfarbod/ERPNext_Extensions && \

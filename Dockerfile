@@ -50,6 +50,16 @@ RUN apt-get update && \
 USER frappe
 WORKDIR /home/frappe/frappe-bench
 
+# pnpm 10 turned "ignored build scripts" from a warning into a fatal
+# install error. Modern Frappe Vue apps (crm, wiki, helpdesk, drive,
+# insights, lms) transitively pull packages that REQUIRE build scripts
+# (@parcel/watcher, @swc/core, esbuild, canvas, core-js, vue-demi).
+# Allow build scripts for all deps during the image build so
+# `bench get-app` -> `yarn install` -> pnpm install can complete.
+# Safe in this context: we already trust the Frappe ecosystem and our
+# own pinned third-party apps; no untrusted code enters this image.
+ENV NPM_CONFIG_DANGEROUSLY_ALLOW_ALL_BUILDS=true
+
 # Group 1: Frappe-maintained apps pinned to version-16 branch
 RUN bench get-app --branch version-16 --skip-assets https://github.com/frappe/payments && \
     bench get-app --branch version-16 --skip-assets https://github.com/frappe/hrms

@@ -43,34 +43,41 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # ---------------------------------------------------------------------------
-# Frappe apps (frappe user)
-#   Grouped into logical RUN layers so Docker can cache them independently
-#   and a failure surfaces the responsible group.
+# Pin pnpm to 9.15.4 via corepack.
+#
+# Why: modern Frappe Vue apps (wiki, crm, helpdesk, drive, lms, insights)
+# pin `packageManager: pnpm@11.x` in their package.json. Corepack honors
+# that and downloads pnpm 11 to run `bench get-app -> yarn install`. pnpm
+# 10 made ignored build scripts a fatal install error, and pnpm 11 removed
+# the `dangerously-allow-all-builds` escape config — so both `.npmrc` and
+# `NPM_CONFIG_*` env-var approaches are silently ignored. The only
+# documented escape in pnpm 11 is `pnpm approve-builds`, which is
+# interactive and can't run during an image build.
+#
+# pnpm 9 emits the same ERR_PNPM_IGNORED_BUILDS as a WARNING, not a fatal
+# error, so installs proceed. Lockfile format 9.0 is shared by pnpm 9/10/11
+# so the committed pnpm-lock.yaml files in the upstream apps still resolve.
+#
+# COREPACK_ENABLE_PROJECT_SPEC=0 tells corepack to ignore each project's
+# `packageManager` field and always use the version we activated below.
 # ---------------------------------------------------------------------------
+USER root
+ENV COREPACK_ENABLE_PROJECT_SPEC=0
+RUN corepack prepare pnpm@9.15.4 --activate
+
 USER frappe
 WORKDIR /home/frappe/frappe-bench
 
-# pnpm 10 made ignored build scripts a fatal install error. Modern
-# Frappe Vue apps (wiki, crm, helpdesk, drive, lms, insights) transitively
-# pull native deps that REQUIRE install scripts (@parcel/watcher,
-# @swc/core, esbuild, canvas, core-js, vue-demi).
-#
-# Fix via a user-level .npmrc at /home/frappe/.npmrc. .npmrc is read by
-# every pnpm invocation, including the pnpm version that corepack
-# downloads behind `yarn install`. (An env var alone is not enough —
-# corepack-managed pnpm doesn't reliably inherit it.)
-#
-# Safe in this image: every package present comes from a repo we
-# explicitly trust in apps.json.
+# Modern Frappe apps still benefit from these defaults under pnpm 9.
 RUN printf '%s\n' \
       'auto-install-peers=true' \
       'strict-peer-dependencies=false' \
-      'dangerously-allow-all-builds=true' \
       > /home/frappe/.npmrc
 
-# Keep the env var as a belt-and-suspenders fallback for any pnpm
-# version that honors npm_config_* over .npmrc precedence.
-ENV npm_config_dangerously_allow_all_builds=true
+# ---------------------------------------------------------------------------
+# Frappe apps. Grouped into logical RUN layers so Docker can cache them
+# independently and a failure surfaces the responsible group.
+# ---------------------------------------------------------------------------
 
 # Group 1: Frappe-maintained apps pinned to version-16 branch
 RUN bench get-app --branch version-16 --skip-assets https://github.com/frappe/payments && \

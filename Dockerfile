@@ -50,15 +50,27 @@ RUN apt-get update && \
 USER frappe
 WORKDIR /home/frappe/frappe-bench
 
-# pnpm 10 turned "ignored build scripts" from a warning into a fatal
-# install error. Modern Frappe Vue apps (crm, wiki, helpdesk, drive,
-# insights, lms) transitively pull packages that REQUIRE build scripts
-# (@parcel/watcher, @swc/core, esbuild, canvas, core-js, vue-demi).
-# Allow build scripts for all deps during the image build so
-# `bench get-app` -> `yarn install` -> pnpm install can complete.
-# Safe in this context: we already trust the Frappe ecosystem and our
-# own pinned third-party apps; no untrusted code enters this image.
-ENV NPM_CONFIG_DANGEROUSLY_ALLOW_ALL_BUILDS=true
+# pnpm 10 made ignored build scripts a fatal install error. Modern
+# Frappe Vue apps (wiki, crm, helpdesk, drive, lms, insights) transitively
+# pull native deps that REQUIRE install scripts (@parcel/watcher,
+# @swc/core, esbuild, canvas, core-js, vue-demi).
+#
+# Fix via a user-level .npmrc at /home/frappe/.npmrc. .npmrc is read by
+# every pnpm invocation, including the pnpm version that corepack
+# downloads behind `yarn install`. (An env var alone is not enough —
+# corepack-managed pnpm doesn't reliably inherit it.)
+#
+# Safe in this image: every package present comes from a repo we
+# explicitly trust in apps.json.
+RUN printf '%s\n' \
+      'auto-install-peers=true' \
+      'strict-peer-dependencies=false' \
+      'dangerously-allow-all-builds=true' \
+      > /home/frappe/.npmrc
+
+# Keep the env var as a belt-and-suspenders fallback for any pnpm
+# version that honors npm_config_* over .npmrc precedence.
+ENV npm_config_dangerously_allow_all_builds=true
 
 # Group 1: Frappe-maintained apps pinned to version-16 branch
 RUN bench get-app --branch version-16 --skip-assets https://github.com/frappe/payments && \

@@ -103,7 +103,7 @@ Repo names and Python module names often differ
 Confirm what the image actually contains:
 
 ```bash
-./scripts/verify-app-slugs.sh ghcr.io/erenaydin-t/dockererpnext:v16-latest
+./scripts/verify-app-slugs.sh ghcr.io/erenaydin-t/myerpnext:v16-latest
 ```
 
 If any printed slug doesn't match an `--install-app` flag in
@@ -130,9 +130,9 @@ the orphaned MariaDB database.
 
 ```bash
 mkdir -p /opt/erpnext && cd /opt/erpnext
-curl -O https://raw.githubusercontent.com/erenaydin-t/dockererpnext/main/docker-compose.yml
-curl -O https://raw.githubusercontent.com/erenaydin-t/dockererpnext/main/upgrade.sh
-curl -O https://raw.githubusercontent.com/erenaydin-t/dockererpnext/main/.env.example
+curl -O https://raw.githubusercontent.com/erenaydin-t/myerpnext/main/docker-compose.yml
+curl -O https://raw.githubusercontent.com/erenaydin-t/myerpnext/main/upgrade.sh
+curl -O https://raw.githubusercontent.com/erenaydin-t/myerpnext/main/.env.example
 chmod +x upgrade.sh
 cp .env.example .env
 ```
@@ -140,7 +140,7 @@ cp .env.example .env
 ### 3. Configure `.env`
 
 ```bash
-GHCR_IMAGE=ghcr.io/erenaydin-t/dockererpnext
+GHCR_IMAGE=ghcr.io/erenaydin-t/myerpnext
 IMAGE_TAG=v16.18.0                  # pin to the exact published tag
 SITE_NAME=erpnext.example.com
 DB_ROOT_PASSWORD=<long-random-string>
@@ -447,7 +447,7 @@ docker compose exec backend bench --site erpnext.example.com version
 OCI label on the published image:
 
 ```bash
-docker inspect ghcr.io/erenaydin-t/dockererpnext:v16.18.0 \
+docker inspect ghcr.io/erenaydin-t/myerpnext:v16.18.0 \
   --format '{{ index .Config.Labels "org.opencontainers.image.version" }}'
 ```
 

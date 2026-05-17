@@ -4,7 +4,7 @@
 #
 # Override defaults via a .env file next to this compose file:
 #
-#   GHCR_IMAGE=ghcr.io/erenaydin-t/dockererpnext
+#   GHCR_IMAGE=ghcr.io/erenaydin-t/myerpnext
 #   IMAGE_TAG=v16.18.0          # exact ERPNext version published by CI
 #   SITE_NAME=erpnext.example.com
 #   DB_ROOT_PASSWORD=changeme
@@ -29,7 +29,7 @@ x-logging: &default_logging
     max-file: "5"
 
 x-erpnext-image: &erpnext_image
-  image: ${GHCR_IMAGE:-ghcr.io/erenaydin-t/dockererpnext}:${IMAGE_TAG:-v16-latest}
+  image: ${GHCR_IMAGE:-ghcr.io/erenaydin-t/myerpnext}:${IMAGE_TAG:-v16-latest}
   pull_policy: always
   networks: [ frappe_network ]
   restart: unless-stopped

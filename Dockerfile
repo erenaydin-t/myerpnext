@@ -107,6 +107,29 @@ RUN bench get-app --skip-assets https://github.com/sfarbod/ERPNext_Extensions &&
     bench get-app --skip-assets https://github.com/erenaydin-t/dms && \
     bench get-app --skip-assets https://github.com/erenaydin-t/logto_bridge.git
 
+# Modern Frappe apps (crm, helpdesk, wiki, insights, lms) have vite
+# frontends that statically import values from sites/common_site_config.json
+# at BUILD time (e.g. `import { socketio_port } from '.../common_site_config.json'`).
+# At image-build time that file doesn't exist yet — the configurator service
+# writes it on first `compose up`. Without this stub, `bench build` fails:
+#   src/socket.js: "socketio_port" is not exported by common_site_config.json
+#
+# These stub values MUST match what docker-compose.yml::configurator writes
+# at runtime, otherwise the values baked into the JS bundles will diverge
+# from what the live services use. configurator may extend the file with
+# additional keys at runtime; it never rewrites keys it doesn't set.
+RUN cat > sites/common_site_config.json <<'EOF'
+{
+  "db_host": "db",
+  "db_port": 3306,
+  "redis_cache": "redis://redis-cache:6379",
+  "redis_queue": "redis://redis-queue:6379",
+  "redis_socketio": "redis://redis-queue:6379",
+  "socketio_port": 9000,
+  "webserver_port": 8000
+}
+EOF
+
 # Build frontend assets once, after every app is installed
 RUN bench build --force
 

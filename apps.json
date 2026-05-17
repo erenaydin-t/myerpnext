@@ -9,15 +9,15 @@
   },
   {
     "url": "https://github.com/frappe/lending",
-    "branch": "version-16"
+    "branch": "develop"
   },
   {
     "url": "https://github.com/frappe/crm",
-    "branch": "version-16"
+    "branch": "main"
   },
   {
     "url": "https://github.com/frappe/telephony",
-    "branch": "version-16"
+    "branch": "develop"
   },
   {
     "url": "https://github.com/frappe/helpdesk",

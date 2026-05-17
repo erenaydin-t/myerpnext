@@ -52,13 +52,15 @@ WORKDIR /home/frappe/frappe-bench
 
 # Group 1: Frappe-maintained apps pinned to version-16 branch
 RUN bench get-app --branch version-16 --skip-assets https://github.com/frappe/payments && \
-    bench get-app --branch version-16 --skip-assets https://github.com/frappe/hrms && \
-    bench get-app --branch version-16 --skip-assets https://github.com/frappe/lending && \
-    bench get-app --branch version-16 --skip-assets https://github.com/frappe/crm && \
-    bench get-app --branch version-16 --skip-assets https://github.com/frappe/telephony
+    bench get-app --branch version-16 --skip-assets https://github.com/frappe/hrms
 
-# Group 2: Independent Frappe-maintained apps (own release cadence)
-RUN bench get-app --skip-assets https://github.com/frappe/helpdesk && \
+# Group 2: Independent Frappe-maintained apps (own release cadence).
+# These do not publish version-XX branches — they roll forward from
+# develop / main. Weekly cron rebuilds will pull whatever HEAD is.
+RUN bench get-app --branch develop --skip-assets https://github.com/frappe/lending && \
+    bench get-app --branch main    --skip-assets https://github.com/frappe/crm && \
+    bench get-app --branch develop --skip-assets https://github.com/frappe/telephony && \
+    bench get-app --skip-assets https://github.com/frappe/helpdesk && \
     bench get-app --skip-assets https://github.com/frappe/lms && \
     bench get-app --skip-assets https://github.com/frappe/insights && \
     bench get-app --skip-assets https://github.com/frappe/wiki && \

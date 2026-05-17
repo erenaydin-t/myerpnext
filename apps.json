@@ -1,0 +1,62 @@
+[
+  {
+    "url": "https://github.com/frappe/payments",
+    "branch": "version-16"
+  },
+  {
+    "url": "https://github.com/frappe/hrms",
+    "branch": "version-16"
+  },
+  {
+    "url": "https://github.com/frappe/lending",
+    "branch": "version-16"
+  },
+  {
+    "url": "https://github.com/frappe/crm",
+    "branch": "version-16"
+  },
+  {
+    "url": "https://github.com/frappe/telephony",
+    "branch": "version-16"
+  },
+  {
+    "url": "https://github.com/frappe/helpdesk",
+    "branch": "main"
+  },
+  {
+    "url": "https://github.com/frappe/lms",
+    "branch": "main"
+  },
+  {
+    "url": "https://github.com/frappe/insights",
+    "branch": "main"
+  },
+  {
+    "url": "https://github.com/frappe/wiki",
+    "branch": "master"
+  },
+  {
+    "url": "https://github.com/frappe/drive",
+    "branch": "main"
+  },
+  {
+    "url": "https://github.com/sfarbod/ERPNext_Extensions",
+    "branch": "main"
+  },
+  {
+    "url": "https://github.com/sfarbod/persian_calendar_ERPNext",
+    "branch": "main"
+  },
+  {
+    "url": "https://github.com/The-Commit-Company/raven",
+    "branch": "main"
+  },
+  {
+    "url": "https://github.com/erenaydin-t/dms",
+    "branch": "main"
+  },
+  {
+    "url": "https://github.com/erenaydin-t/logto_bridge",
+    "branch": "main"
+  }
+]

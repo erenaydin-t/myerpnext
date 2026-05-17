@@ -1,0 +1,22 @@
+# Install to /etc/logrotate.d/frappe-erpnext on the host.
+#
+# Rotates Frappe's own log files (the `logs` named volume mounted into
+# every Frappe service at /home/frappe/frappe-bench/logs).
+#
+# The path assumes Docker's default volume location AND the compose
+# project name "erpnext" (set via `name: erpnext` in docker-compose.yml).
+# If you change the project name, update the path below.
+#
+# `copytruncate` is required because Frappe holds the log file open
+# via Python logging and won't reopen on SIGHUP.
+
+/var/lib/docker/volumes/erpnext_logs/_data/*.log {
+    daily
+    rotate 14
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+    su root root
+}

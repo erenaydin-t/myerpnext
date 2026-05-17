@@ -1,0 +1,350 @@
+# ---------------------------------------------------------------------------
+# Production deployment. DO NOT run `docker compose up -d` for upgrades —
+# use ./upgrade.sh (it enforces: pull → db/redis → backend → migrate → workers).
+#
+# Override defaults via a .env file next to this compose file:
+#
+#   GHCR_IMAGE=ghcr.io/erenaydin-t/dockererpnext
+#   IMAGE_TAG=v16.18.0          # exact ERPNext version published by CI
+#   SITE_NAME=erpnext.example.com
+#   DB_ROOT_PASSWORD=changeme
+#   ADMIN_PASSWORD=changeme
+#
+# Resource limits are env-driven. Defaults are sized for a 16 GB RAM /
+# 4 vCPU host using the percentage allocation in README.md. For any other
+# host size, regenerate them:
+#
+#   ./scripts/tune-resources.sh           # auto-detects host capacity
+#   ./scripts/tune-resources.sh 32 8      # explicit GB + vCPU
+#
+# Append the output to .env, then run ./upgrade.sh (or `up -d` on first boot).
+# ---------------------------------------------------------------------------
+
+name: erpnext
+
+x-logging: &default_logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+x-erpnext-image: &erpnext_image
+  image: ${GHCR_IMAGE:-ghcr.io/erenaydin-t/dockererpnext}:${IMAGE_TAG:-v16-latest}
+  pull_policy: always
+  networks: [ frappe_network ]
+  restart: unless-stopped
+  logging: *default_logging
+
+x-erpnext-volumes: &erpnext_volumes
+  - sites:/home/frappe/frappe-bench/sites
+  - assets:/home/frappe/frappe-bench/sites/assets_volume
+  - logs:/home/frappe/frappe-bench/logs
+
+x-backend-env: &backend_env
+  FRAPPE_REDIS_CACHE: redis://redis-cache:6379
+  FRAPPE_REDIS_QUEUE: redis://redis-queue:6379
+  SITE_NAME: ${SITE_NAME:-erpnext.example.com}
+
+services:
+  # ---------------------------------------------------------------------
+  # One-shot: writes /sites/common_site_config.json so every other
+  # service knows how to reach DB + Redis. Must finish before backend,
+  # workers, scheduler, websocket, and create-site start.
+  # ---------------------------------------------------------------------
+  configurator:
+    <<: *erpnext_image
+    restart: "no"
+    entrypoint: [ "bash", "-c" ]
+    command:
+      - >
+        ls -1 apps > sites/apps.txt;
+        bench set-config -g db_host $$DB_HOST;
+        bench set-config -gp db_port $$DB_PORT;
+        bench set-config -g redis_cache "redis://$$REDIS_CACHE";
+        bench set-config -g redis_queue "redis://$$REDIS_QUEUE";
+        bench set-config -g redis_socketio "redis://$$REDIS_QUEUE";
+        bench set-config -gp socketio_port $$SOCKETIO_PORT;
+    environment:
+      DB_HOST: db
+      DB_PORT: "3306"
+      REDIS_CACHE: redis-cache:6379
+      REDIS_QUEUE: redis-queue:6379
+      SOCKETIO_PORT: "9000"
+    volumes: *erpnext_volumes
+    depends_on:
+      db:
+        condition: service_healthy
+      redis-cache:
+        condition: service_started
+      redis-queue:
+        condition: service_started
+
+  # ---------------------------------------------------------------------
+  # One-shot: creates the site on first boot and installs every app.
+  # Re-running on an existing site is a no-op (checked below).
+  # FIRST BOOT TAKES 10-20 MINUTES — do NOT consider it failed early.
+  # Watch progress: docker compose logs -f create-site
+  # ---------------------------------------------------------------------
+  create-site:
+    <<: *erpnext_image
+    restart: "no"
+    entrypoint: [ "bash", "-c" ]
+    command:
+      - >
+        wait-for-it -t 120 db:3306;
+        wait-for-it -t 120 redis-cache:6379;
+        wait-for-it -t 120 redis-queue:6379;
+        export start=`date +%s`;
+        until [[ -n `grep -hs ^ sites/common_site_config.json | jq -r ".db_host // empty"` ]] && \
+              [[ -n `grep -hs ^ sites/common_site_config.json | jq -r ".redis_cache // empty"` ]] && \
+              [[ -n `grep -hs ^ sites/common_site_config.json | jq -r ".redis_queue // empty"` ]];
+        do
+          echo "Waiting for configurator...";
+          sleep 5;
+          if (( `date +%s`-start > 120 )); then echo "Timeout"; exit 1; fi
+        done;
+        if [ -d "sites/$$SITE_NAME" ]; then
+          echo "Site $$SITE_NAME already exists - skipping creation.";
+          exit 0;
+        fi;
+        bench new-site "$$SITE_NAME" \
+          --mariadb-user-host-login-scope='%' \
+          --admin-password="$$ADMIN_PASSWORD" \
+          --db-root-username=root \
+          --db-root-password="$$DB_ROOT_PASSWORD" \
+          --install-app payments \
+          --install-app erpnext \
+          --install-app hrms \
+          --install-app lending \
+          --install-app crm \
+          --install-app telephony \
+          --install-app helpdesk \
+          --install-app lms \
+          --install-app insights \
+          --install-app wiki \
+          --install-app erpnext_extensions \
+          --install-app persian_calendar \
+          --install-app raven \
+          --install-app dms \
+          --install-app logto_bridge \
+          --set-default;
+    environment:
+      SITE_NAME: ${SITE_NAME:-erpnext.example.com}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
+      DB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-admin}
+    volumes: *erpnext_volumes
+    depends_on:
+      configurator:
+        condition: service_completed_successfully
+
+  # ---------------------------------------------------------------------
+  # One-shot: bootstrap / warmup. Runs after create-site and before any
+  # long-running service. Idempotent — safe to re-run on every
+  # `compose up`. Re-runs automatically when the image changes because
+  # of pull_policy: always + force-recreate on the dependency chain.
+  #
+  # Why this exists:
+  #   - sites/assets/ lives on the persistent `sites` volume. On every
+  #     image upgrade after the first, the OLD assets in the volume
+  #     mask the NEW image's pre-built ones. `bench build --force`
+  #     rewrites them.
+  #   - Redis caches DocType metadata + hooks. After an image upgrade
+  #     (new hooks / fields / patches) the in-Redis snapshot is stale
+  #     until explicitly cleared.
+  # ---------------------------------------------------------------------
+  bootstrap:
+    <<: *erpnext_image
+    restart: "no"
+    entrypoint: [ "bash", "-c" ]
+    command:
+      - >
+        set -e;
+        echo "[bootstrap] Rebuilding frontend assets...";
+        bench build --force;
+        echo "[bootstrap] Clearing Frappe metadata cache...";
+        bench --site "$$SITE_NAME" clear-cache;
+        echo "[bootstrap] Clearing website cache...";
+        bench --site "$$SITE_NAME" clear-website-cache;
+        echo "[bootstrap] Done.";
+    environment:
+      SITE_NAME: ${SITE_NAME:-erpnext.example.com}
+    volumes: *erpnext_volumes
+    depends_on:
+      create-site:
+        condition: service_completed_successfully
+
+  backend:
+    <<: *erpnext_image
+    volumes: *erpnext_volumes
+    environment:
+      <<: *backend_env
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - "curl -fsS -H \"Host: ${SITE_NAME:-erpnext.example.com}\" http://localhost:8000/api/method/ping || exit 1"
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      # Generous start_period: bench warmup of doctype metadata on a
+      # busy site can take 30-60s before /api/method/ping responds.
+      start_period: 180s
+    deploy:
+      resources:
+        limits:
+          memory: ${BACKEND_MEM_LIMIT:-2506m}
+          cpus: "${BACKEND_CPU_LIMIT:-2.0}"
+    depends_on:
+      bootstrap:
+        condition: service_completed_successfully
+
+  queue-long:
+    <<: *erpnext_image
+    command: [ "bench", "worker", "--queue", "long,default,short" ]
+    volumes: *erpnext_volumes
+    environment:
+      <<: *backend_env
+    deploy:
+      resources:
+        limits:
+          memory: ${QUEUE_LONG_MEM_LIMIT:-3063m}
+          cpus: "${QUEUE_LONG_CPU_LIMIT:-2.0}"
+    depends_on:
+      bootstrap:
+        condition: service_completed_successfully
+
+  queue-short:
+    <<: *erpnext_image
+    command: [ "bench", "worker", "--queue", "short,default" ]
+    volumes: *erpnext_volumes
+    environment:
+      <<: *backend_env
+    deploy:
+      resources:
+        limits:
+          memory: ${QUEUE_SHORT_MEM_LIMIT:-1114m}
+          cpus: "${QUEUE_SHORT_CPU_LIMIT:-1.0}"
+    depends_on:
+      bootstrap:
+        condition: service_completed_successfully
+
+  scheduler:
+    <<: *erpnext_image
+    command: [ "bench", "schedule" ]
+    volumes: *erpnext_volumes
+    environment:
+      <<: *backend_env
+    deploy:
+      resources:
+        limits:
+          memory: ${SCHEDULER_MEM_LIMIT:-557m}
+          cpus: "${SCHEDULER_CPU_LIMIT:-0.6}"
+    depends_on:
+      bootstrap:
+        condition: service_completed_successfully
+
+  websocket:
+    <<: *erpnext_image
+    command: [ "node", "/home/frappe/frappe-bench/apps/frappe/socketio.js" ]
+    volumes: *erpnext_volumes
+    environment:
+      <<: *backend_env
+    deploy:
+      resources:
+        limits:
+          memory: ${WEBSOCKET_MEM_LIMIT:-557m}
+          cpus: "${WEBSOCKET_CPU_LIMIT:-0.6}"
+    depends_on:
+      bootstrap:
+        condition: service_completed_successfully
+
+  frontend:
+    <<: *erpnext_image
+    command: [ "nginx-entrypoint.sh" ]
+    environment:
+      BACKEND: backend:8000
+      FRAPPE_SITE_NAME_HEADER: ${SITE_NAME:-erpnext.example.com}
+      SOCKETIO: websocket:9000
+      UPSTREAM_REAL_IP_ADDRESS: 127.0.0.1
+      UPSTREAM_REAL_IP_HEADER: X-Forwarded-For
+      UPSTREAM_REAL_IP_RECURSIVE: "off"
+      PROXY_READ_TIMEOUT: "120"
+      CLIENT_MAX_BODY_SIZE: 50m
+    volumes: *erpnext_volumes
+    ports:
+      # Loopback-only — your reverse proxy on the host terminates TLS.
+      - "127.0.0.1:9090:8080"
+    deploy:
+      resources:
+        limits:
+          memory: ${FRONTEND_MEM_LIMIT:-557m}
+          cpus: "${FRONTEND_CPU_LIMIT:-1.0}"
+    depends_on:
+      backend:
+        condition: service_healthy
+      websocket:
+        condition: service_started
+
+  db:
+    image: mariadb:11.4
+    networks: [ frappe_network ]
+    restart: unless-stopped
+    logging: *default_logging
+    healthcheck:
+      test: [ "CMD", "healthcheck.sh", "--connect", "--innodb_initialized" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --skip-character-set-client-handshake
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-admin}
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-admin}
+    volumes:
+      - db-data:/var/lib/mysql
+    deploy:
+      resources:
+        limits:
+          memory: ${DB_MEM_LIMIT:-4177m}
+          cpus: "${DB_CPU_LIMIT:-2.0}"
+
+  # Redis is internal-only. NEVER add a `ports:` block to either redis service.
+  redis-cache:
+    image: redis:7-alpine
+    networks: [ frappe_network ]
+    restart: unless-stopped
+    logging: *default_logging
+    volumes:
+      - redis-cache-data:/data
+    deploy:
+      resources:
+        limits:
+          memory: ${REDIS_CACHE_MEM_LIMIT:-696m}
+          cpus: "${REDIS_CACHE_CPU_LIMIT:-0.4}"
+
+  redis-queue:
+    image: redis:7-alpine
+    networks: [ frappe_network ]
+    restart: unless-stopped
+    logging: *default_logging
+    volumes:
+      - redis-queue-data:/data
+    deploy:
+      resources:
+        limits:
+          memory: ${REDIS_QUEUE_MEM_LIMIT:-696m}
+          cpus: "${REDIS_QUEUE_CPU_LIMIT:-0.4}"
+
+volumes:
+  db-data:
+  redis-queue-data:
+  redis-cache-data:
+  sites:
+  logs:
+  assets:
+
+networks:
+  frappe_network:
+    driver: bridge

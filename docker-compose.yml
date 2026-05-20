@@ -10,14 +10,10 @@
 #   DB_ROOT_PASSWORD=changeme
 #   ADMIN_PASSWORD=changeme
 #
-# Resource limits are env-driven. Defaults are sized for a 16 GB RAM /
-# 4 vCPU host using the percentage allocation in README.md. For any other
-# host size, regenerate them:
-#
-#   ./scripts/tune-resources.sh           # auto-detects host capacity
-#   ./scripts/tune-resources.sh 32 8      # explicit GB + vCPU
-#
-# Append the output to .env, then run ./upgrade.sh (or `up -d` on first boot).
+# No Docker memory/CPU limits are set: every service may use the full host
+# capacity. This avoids cgroup OOM kills (exit 137) during memory-heavy
+# operations like `bench build`. Make sure the host itself has enough RAM
+# (and ideally swap) for MariaDB + Frappe workers + DMS OCR running together.
 # ---------------------------------------------------------------------------
 
 name: erpnext
@@ -144,10 +140,10 @@ services:
   # of pull_policy: always + force-recreate on the dependency chain.
   #
   # Why this exists:
-  #   - sites/assets/ lives on the persistent `sites` volume. On every
-  #     image upgrade after the first, the OLD assets in the volume
-  #     mask the NEW image's pre-built ones. `bench build --force`
-  #     rewrites them.
+  #   - sites/assets/ lives on the persistent `sites` volume, which masks
+  #     the image's pre-built assets on every boot. We RESTORE them with a
+  #     fast copy from /assets-dist (baked into the image by the Dockerfile)
+  #     instead of running `bench build` — no rebuild, no OOM, near-instant.
   #   - Redis caches DocType metadata + hooks. After an image upgrade
   #     (new hooks / fields / patches) the in-Redis snapshot is stale
   #     until explicitly cleared.
@@ -159,8 +155,9 @@ services:
     command:
       - >
         set -e;
-        echo "[bootstrap] Rebuilding frontend assets...";
-        bench build --force;
+        echo "[bootstrap] Restoring pre-built assets from image...";
+        rm -rf sites/assets;
+        cp -a /home/frappe/frappe-bench/assets-dist sites/assets;
         echo "[bootstrap] Clearing Frappe metadata cache...";
         bench --site "$$SITE_NAME" clear-cache;
         echo "[bootstrap] Clearing website cache...";
@@ -188,11 +185,6 @@ services:
       # Generous start_period: bench warmup of doctype metadata on a
       # busy site can take 30-60s before /api/method/ping responds.
       start_period: 180s
-    deploy:
-      resources:
-        limits:
-          memory: ${BACKEND_MEM_LIMIT:-2506m}
-          cpus: "${BACKEND_CPU_LIMIT:-2.0}"
     depends_on:
       bootstrap:
         condition: service_completed_successfully
@@ -203,11 +195,6 @@ services:
     volumes: *erpnext_volumes
     environment:
       <<: *backend_env
-    deploy:
-      resources:
-        limits:
-          memory: ${QUEUE_LONG_MEM_LIMIT:-3063m}
-          cpus: "${QUEUE_LONG_CPU_LIMIT:-2.0}"
     depends_on:
       bootstrap:
         condition: service_completed_successfully
@@ -218,11 +205,6 @@ services:
     volumes: *erpnext_volumes
     environment:
       <<: *backend_env
-    deploy:
-      resources:
-        limits:
-          memory: ${QUEUE_SHORT_MEM_LIMIT:-1114m}
-          cpus: "${QUEUE_SHORT_CPU_LIMIT:-1.0}"
     depends_on:
       bootstrap:
         condition: service_completed_successfully
@@ -233,11 +215,6 @@ services:
     volumes: *erpnext_volumes
     environment:
       <<: *backend_env
-    deploy:
-      resources:
-        limits:
-          memory: ${SCHEDULER_MEM_LIMIT:-557m}
-          cpus: "${SCHEDULER_CPU_LIMIT:-0.6}"
     depends_on:
       bootstrap:
         condition: service_completed_successfully
@@ -248,11 +225,6 @@ services:
     volumes: *erpnext_volumes
     environment:
       <<: *backend_env
-    deploy:
-      resources:
-        limits:
-          memory: ${WEBSOCKET_MEM_LIMIT:-557m}
-          cpus: "${WEBSOCKET_CPU_LIMIT:-0.6}"
     depends_on:
       bootstrap:
         condition: service_completed_successfully
@@ -273,11 +245,6 @@ services:
     ports:
       # Loopback-only — your reverse proxy on the host terminates TLS.
       - "127.0.0.1:9090:8080"
-    deploy:
-      resources:
-        limits:
-          memory: ${FRONTEND_MEM_LIMIT:-557m}
-          cpus: "${FRONTEND_CPU_LIMIT:-1.0}"
     depends_on:
       backend:
         condition: service_healthy
@@ -304,11 +271,6 @@ services:
       MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-admin}
     volumes:
       - db-data:/var/lib/mysql
-    deploy:
-      resources:
-        limits:
-          memory: ${DB_MEM_LIMIT:-4177m}
-          cpus: "${DB_CPU_LIMIT:-2.0}"
 
   # Redis is internal-only. NEVER add a `ports:` block to either redis service.
   redis-cache:
@@ -318,11 +280,6 @@ services:
     logging: *default_logging
     volumes:
       - redis-cache-data:/data
-    deploy:
-      resources:
-        limits:
-          memory: ${REDIS_CACHE_MEM_LIMIT:-696m}
-          cpus: "${REDIS_CACHE_CPU_LIMIT:-0.4}"
 
   redis-queue:
     image: redis:7-alpine
@@ -331,11 +288,6 @@ services:
     logging: *default_logging
     volumes:
       - redis-queue-data:/data
-    deploy:
-      resources:
-        limits:
-          memory: ${REDIS_QUEUE_MEM_LIMIT:-696m}
-          cpus: "${REDIS_QUEUE_CPU_LIMIT:-0.4}"
 
 volumes:
   db-data:

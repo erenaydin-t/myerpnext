@@ -40,8 +40,7 @@ The full list with branches is in [`apps.json`](apps.json).
 ├── upgrade.sh                       # The ONLY supported upgrade path
 ├── .env.example                     # Template for server-side .env
 ├── scripts/
-│   ├── verify-app-slugs.sh          # Print actual app module names in the image
-│   └── tune-resources.sh            # Compute env-driven resource limits for a host
+│   └── verify-app-slugs.sh          # Print actual app module names in the image
 ├── deploy/
 │   └── logrotate-frappe             # logrotate config for the `logs` volume
 └── .github/workflows/docker-build.yml  # CI: preflight + build + push to GHCR
@@ -118,9 +117,9 @@ the orphaned MariaDB database.
 ### 1. Prerequisites
 
 - Linux host with Docker Engine ≥ 24 and the Compose v2 plugin
-- **Minimum 8 GB RAM / 2 vCPU**; recommended **16 GB / 4 vCPU** (the compose
-  defaults are sized for this). Anything larger benefits from regenerating
-  the resource limits — see [Resource sizing](#resource-sizing) below.
+- **Minimum 8 GB RAM / 2 vCPU**; recommended **16 GB / 4 vCPU**. No Docker
+  resource limits are applied — services use the full host. Size the host
+  (RAM + swap) for your workload; see [Resource sizing](#resource-sizing).
 - DNS pointing your site name (e.g. `erpnext.example.com`) at the host
 - A reverse proxy in front (Nginx / Caddy / Traefik) terminating TLS and
   forwarding to **`127.0.0.1:9090`** — the compose stack binds the frontend
@@ -150,16 +149,9 @@ ADMIN_PASSWORD=<long-random-string>
 > Always pin `IMAGE_TAG` to an exact semver in production. `v16-latest` is
 > fine for staging but will silently move under you.
 
-If your host is **not** ~16 GB / 4 vCPU, regenerate the resource limits:
-
-```bash
-./scripts/tune-resources.sh           # auto-detects this host
-./scripts/tune-resources.sh 32 8      # explicit: 32 GB / 8 vCPU
-./scripts/tune-resources.sh >> .env   # append output to .env
-```
-
-The values in `.env.example` cover the 16 GB / 4 vCPU baseline; on any other
-size, the tuned values are noticeably better (see [Resource sizing](#resource-sizing)).
+No resource limits are configured, so there is nothing to tune per host —
+every service may use the full host capacity. See [Resource sizing](#resource-sizing)
+for guidance on sizing the host itself.
 
 ### 4. First boot
 
@@ -249,79 +241,33 @@ update the volume path in `deploy/logrotate-frappe` accordingly.
 
 ## Resource sizing
 
-Every per-service `memory` and `cpus` limit in `docker-compose.yml` is fed
-from an env var with a default baked in for a 16 GB RAM / 4 vCPU host.
-Don't hand-pick small fixed numbers — let `./scripts/tune-resources.sh`
-compute them for your actual host.
+**No Docker resource limits are configured.** `docker-compose.yml` sets no
+`memory` or `cpus` caps on any service, so every container may use the full
+host capacity. This is deliberate: cgroup memory caps cause OOM kills
+(exit 137) during memory-heavy operations such as `bench build`, where
+Frappe sizes Node's heap from *host* RAM and overshoots a small per-container
+cap.
 
-### Allocation policy
+Because there are no limits, sizing is about the **host**, not the
+containers:
 
-**Memory.** 85% of host RAM is divided across the stack; the remaining 15%
-is held back for the kernel, the host-side reverse proxy, the Docker
-daemon, and short bursts. Within the allocatable pool:
+- **RAM.** Provision enough for MariaDB's InnoDB buffer pool + Frappe
+  gunicorn workers + DMS OCR (Tesseract/LibreOffice can use 1–2 GB per job)
+  running concurrently. 16 GB is comfortable; 8 GB is the practical floor.
+- **Swap.** Add swap (e.g. 4 GB) as a safety margin for build/OCR bursts:
 
-| Service       | Share | Why                                                    |
-| ------------- | ----- | ------------------------------------------------------ |
-| `db`          | 30%   | MariaDB InnoDB buffer pool is the single biggest win   |
-| `queue-long`  | 22%   | DMS OCR (Tesseract) + LibreOffice can use 1–2 GB / job |
-| `backend`     | 18%   | 4–8 gunicorn workers @ ~300–500 MB each                |
-| `queue-short` | 8%    | interactive background jobs, much smaller              |
-| `redis-cache` | 5%    | Frappe doctype/document cache                          |
-| `redis-queue` | 5%    | RQ broker + socketio pubsub                            |
-| `websocket`   | 4%    | Node.js socketio (mostly idle connections)             |
-| `scheduler`   | 4%    | cron-like emitter                                      |
-| `frontend`    | 4%    | internal nginx                                         |
+  ```bash
+  sudo fallocate -l 4G /swapfile && sudo chmod 600 /swapfile
+  sudo mkswap /swapfile && sudo swapon /swapfile
+  echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+  ```
 
-**CPU.** Limits intentionally overcommit (sum > 100% of host CPU). CPU is
-a soft constraint — overrun causes throttling, never an OOM kill — and in
-practice only one or two services peg the CPU at a time.
+- **Co-tenancy.** Since nothing is capped, don't run unrelated heavy
+  services on the same host — the stack will use whatever it needs.
 
-| Service       | CPU share (of host) |
-| ------------- | ------------------- |
-| `db`          | 50%                 |
-| `backend`     | 50%                 |
-| `queue-long`  | 50%                 |
-| `queue-short` | 25%                 |
-| `frontend`    | 25%                 |
-| `websocket`   | 15%                 |
-| `scheduler`   | 15%                 |
-| `redis-cache` | 10%                 |
-| `redis-queue` | 10%                 |
-
-### Computed values for common host sizes
-
-| Host          | `db`     | `backend` | `queue-long` | `queue-short` | redis (each) | ws/sched/frontend (each) |
-| ------------- | -------- | --------- | ------------ | ------------- | ------------ | ------------------------ |
-| 8 GB / 2 vCPU | 2088 MB  | 1253 MB   | 1531 MB      | 557 MB        | 348 MB       | 278 MB                   |
-| 16 GB / 4 vCPU (default) | 4177 MB | 2506 MB | 3063 MB | 1114 MB    | 696 MB       | 557 MB                   |
-| 32 GB / 8 vCPU | 8355 MB | 5013 MB  | 6127 MB      | 2228 MB       | 1392 MB      | 1114 MB                  |
-| 64 GB / 16 vCPU| 16710 MB| 10027 MB | 12254 MB     | 4456 MB       | 2785 MB      | 2228 MB                  |
-
-Regenerate any time:
-
-```bash
-./scripts/tune-resources.sh                 # auto-detect
-./scripts/tune-resources.sh 32 8            # explicit
-./scripts/tune-resources.sh 32 8 >> .env    # append
-```
-
-### Hand-tuning a single value
-
-If your workload is asymmetric (e.g. heavy DMS OCR pipeline + light user
-load), bump the relevant limit in `.env` and lower one of comparable size
-to keep the total under your allocatable pool. For example, on a 16 GB
-host, shifting 1 GB from `backend` to `queue-long`:
-
-```env
-BACKEND_MEM_LIMIT=1506m
-QUEUE_LONG_MEM_LIMIT=4063m
-```
-
-After any change, restart only the affected service:
-
-```bash
-docker compose up -d --no-deps --force-recreate queue-long
-```
+If you ever need to constrain a single service (e.g. on a shared host),
+add a `deploy.resources.limits` block back to that service in
+`docker-compose.yml` manually.
 
 ---
 
@@ -480,7 +426,7 @@ docker inspect ghcr.io/erenaydin-t/myerpnext:v16.18.0 \
 - [ ] TLS terminated at the reverse proxy
 - [ ] Redis ports are **not** exposed publicly (no `ports:` block on either redis service — leave it that way)
 - [ ] App slugs verified with `./scripts/verify-app-slugs.sh` against the built image
-- [ ] Resource limits regenerated for the actual host (`./scripts/tune-resources.sh`) if not 16 GB / 4 vCPU
+- [ ] Host has enough RAM (+ swap) for the workload — no per-container limits are set (see [Resource sizing](#resource-sizing))
 - [ ] Upgrades go through `./upgrade.sh`, not plain `docker compose up`
 - [ ] logrotate config installed on the host (`deploy/logrotate-frappe`)
 - [ ] Backup strategy planned (manual command available today; automation pending)

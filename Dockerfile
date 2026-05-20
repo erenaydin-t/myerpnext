@@ -130,8 +130,35 @@ RUN cat > sites/common_site_config.json <<'EOF'
 }
 EOF
 
-# Build frontend assets once, after every app is installed
-RUN bench build --force
+# Build frontend assets after every app is installed.
+#
+# We build ONE APP AT A TIME instead of `bench build --force` (which builds
+# every app in a single pass). The combined build holds the Vite/esbuild
+# module graphs of all ~14 apps in memory at once — with heavy Vue frontends
+# (crm, helpdesk, wiki, insights, lms, raven, hrms) peak RSS exceeds the RAM
+# on small build hosts and the kernel OOM-killer terminates the build (exit
+# 137 / "Killed"). Building per-app keeps each invocation's working set small
+# so peak memory stays bounded.
+#
+# NODE_OPTIONS caps V8's JS heap as a secondary guard rail. Raise it if a
+# single large app still hits "JavaScript heap out of memory"; lower it if the
+# host is very tight on RAM.
+ENV NODE_OPTIONS=--max-old-space-size=2048
+RUN set -eu; \
+    for app in $(cat sites/apps.txt); do \
+      echo "==> bench build --app ${app}"; \
+      bench build --force --app "${app}"; \
+    done
+
+# Stash the freshly built assets OUTSIDE the sites/ tree.
+#
+# At runtime the `sites` named volume is mounted over /sites, so it MASKS the
+# image's pre-built sites/assets on every boot after the first. Keeping a copy
+# here (frappe-bench/ is part of the image, never volume-mounted) lets the
+# compose `bootstrap` service restore them with a fast `cp` — no `bench build`
+# at runtime, so no OOM and no waiting. assets-dist is the source of truth for
+# the bundled CSS/JS shipped in this image.
+RUN cp -a sites/assets /home/frappe/frappe-bench/assets-dist
 
 # Persist resolved ERPNext version inside the image for runtime diagnostics
 RUN echo "${ERPNEXT_VERSION}" > /home/frappe/frappe-bench/ERPNEXT_VERSION

@@ -130,25 +130,18 @@ RUN cat > sites/common_site_config.json <<'EOF'
 }
 EOF
 
-# Build frontend assets after every app is installed.
+# Build frontend assets once, after every app is installed.
 #
-# We build ONE APP AT A TIME instead of `bench build --force` (which builds
-# every app in a single pass). The combined build holds the Vite/esbuild
-# module graphs of all ~14 apps in memory at once — with heavy Vue frontends
-# (crm, helpdesk, wiki, insights, lms, raven, hrms) peak RSS exceeds the RAM
-# on small build hosts and the kernel OOM-killer terminates the build (exit
-# 137 / "Killed"). Building per-app keeps each invocation's working set small
-# so peak memory stays bounded.
+# This MUST be a single full `bench build` — NOT a per-app loop. Building apps
+# one at a time (`bench build --app X` in sequence) leaves assets.json and the
+# emitted bundle files referencing different content hashes: the backend
+# renders <link>/<script> tags from assets.json, nginx serves the files from
+# disk, and the two disagree → 404 + "MIME type text/html" for every bundle.
+# One pass keeps assets.json and the on-disk hashes consistent.
 #
-# NODE_OPTIONS caps V8's JS heap as a secondary guard rail. Raise it if a
-# single large app still hits "JavaScript heap out of memory"; lower it if the
-# host is very tight on RAM.
-ENV NODE_OPTIONS=--max-old-space-size=2048
-RUN set -eu; \
-    for app in $(cat sites/apps.txt); do \
-      echo "==> bench build --app ${app}"; \
-      bench build --force --app "${app}"; \
-    done
+# This runs in CI (GitHub Actions), which has ample RAM for the combined
+# build, so the runtime OOM that affects small servers does not apply here.
+RUN bench build --force
 
 # Stash the freshly built assets OUTSIDE the sites/ tree.
 #

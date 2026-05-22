@@ -26,10 +26,7 @@ x-logging: &default_logging
 
 x-erpnext-image: &erpnext_image
   image: ${GHCR_IMAGE:-ghcr.io/erenaydin-t/myerpnext}:${IMAGE_TAG:-v16-latest}
-  # `always` re-pulls on every `up`. Set PULL_POLICY=never to use an image
-  # already present on the host (e.g. built locally, or pre-pulled) — that's
-  # what `./upgrade.sh --no-pull` does.
-  pull_policy: ${PULL_POLICY:-always}
+  pull_policy: always
   networks: [ frappe_network ]
   restart: unless-stopped
   logging: *default_logging

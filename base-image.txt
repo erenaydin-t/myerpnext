@@ -1,0 +1,14 @@
+# ERPNext base image this custom image is built on.
+#
+# Editing this file (and pushing to main) is how you trigger a NEW build:
+# change the tag to the ERPNext version you want, commit, and CI rebuilds and
+# publishes. The exact published version is resolved automatically from this
+# base image at build time.
+#
+# The CI workflow (.github/workflows/docker-build.yml) reads the first
+# non-comment line below. Comment lines (starting with #) are ignored.
+#
+# Examples:
+#   frappe/erpnext:version-16    # rolling latest v16 (picks up patches on rebuild)
+#   frappe/erpnext:v16.20.0      # pin an exact ERPNext version
+frappe/erpnext:version-16

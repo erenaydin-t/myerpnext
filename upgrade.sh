@@ -7,17 +7,8 @@
 # running migrations, leaving the site in a broken state when the schema
 # differs.
 #
-# Usage:
-#   ./upgrade.sh              # pull the image from the registry, then upgrade
-#   ./upgrade.sh --no-pull    # use the image already on this host (no pull)
-#
-# --no-pull is for when the image is already present locally (built on the
-# server, or pre-pulled). It skips the registry pull AND forces
-# pull_policy=never so the `up` steps don't re-pull either. The run fails
-# fast if the image isn't actually present.
-#
 # Order enforced:
-#   1. docker compose pull            (skipped with --no-pull)
+#   1. docker compose pull
 #   2. start db + redis (stateful services), wait for db health
 #   3. (re)run configurator with new image
 #   4. start backend with new image, wait for /api/method/ping
@@ -31,26 +22,6 @@
 set -euo pipefail
 
 cd "$(dirname "$0")"
-
-# --- Args ---------------------------------------------------------------------
-NO_PULL=0
-for arg in "$@"; do
-  case "$arg" in
-    --no-pull|--skip-pull) NO_PULL=1 ;;
-    -h|--help)
-      grep -E '^#( |$)' "$0" | sed -E 's/^# ?//'
-      exit 0 ;;
-    *)
-      echo "ERROR: unknown argument '$arg' (try --no-pull or --help)" >&2
-      exit 1 ;;
-  esac
-done
-
-# With --no-pull, force pull_policy=never for every `docker compose up` below
-# (compose reads ${PULL_POLICY:-always} in docker-compose.yml).
-if [ "$NO_PULL" = "1" ]; then
-  export PULL_POLICY=never
-fi
 
 if [ ! -f .env ]; then
   echo "ERROR: .env not found in $(pwd). Copy .env.example and fill it in first." >&2
@@ -66,20 +37,9 @@ echo "==> Upgrading site: ${SITE_NAME}"
 echo "==> Image tag in .env: ${CURRENT_TAG:-<unset, will use compose default>}"
 echo
 
-# 1. Pull new images (unless --no-pull: use the image already on this host)
-if [ "$NO_PULL" = "1" ]; then
-  echo "==> [1/7] Skipping pull (--no-pull); using image already on host..."
-  IMAGE_REF="$(docker compose config --images 2>/dev/null | grep -v -E 'mariadb|redis' | head -n1)"
-  if [ -n "${IMAGE_REF}" ] && ! docker image inspect "${IMAGE_REF}" >/dev/null 2>&1; then
-    echo "ERROR: --no-pull set but image '${IMAGE_REF}' is not present on this host." >&2
-    echo "       Build it or 'docker compose pull' first, or run without --no-pull." >&2
-    exit 1
-  fi
-  echo "    using local image: ${IMAGE_REF:-<unknown>}"
-else
-  echo "==> [1/7] Pulling images..."
-  docker compose pull
-fi
+# 1. Pull new images
+echo "==> [1/7] Pulling images..."
+docker compose pull
 
 # 2. Bring up stateful services first
 echo "==> [2/7] Starting db, redis-cache, redis-queue..."

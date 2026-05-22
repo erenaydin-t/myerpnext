@@ -3,15 +3,21 @@ name: Build and Publish ERPNext Image
 on:
   push:
     branches: [ "main" ]
+    # Only rebuild when something that actually affects the image changes:
+    #   - Dockerfile      : the image recipe / installed apps changed
+    #   - base-image.txt  : a new upstream ERPNext version was requested
+    # Pushes that only touch docs, compose, scripts, etc. do NOT rebuild.
+    paths:
+      - "Dockerfile"
+      - "base-image.txt"
+  # Manual trigger — use this to force a rebuild (e.g. to pick up upstream
+  # patches on a rolling tag without editing base-image.txt).
   workflow_dispatch:
-  schedule:
-    # Weekly rebuild on Sunday 03:00 UTC to pick up upstream ERPNext patches
-    - cron: "0 3 * * 0"
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
-  BASE_IMAGE: frappe/erpnext:version-16
+  # BASE_IMAGE is read from base-image.txt at runtime (see the step below).
 
 jobs:
   build-and-push:
@@ -23,6 +29,22 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      # -----------------------------------------------------------------
+      # Resolve the ERPNext base image from base-image.txt (first
+      # non-comment line). Editing that file is the supported way to
+      # build a new ERPNext version. Sets BASE_IMAGE for all later steps.
+      # -----------------------------------------------------------------
+      - name: Read base image from base-image.txt
+        run: |
+          set -euo pipefail
+          BASE_IMAGE="$(grep -vE '^[[:space:]]*#' base-image.txt | grep -vE '^[[:space:]]*$' | head -n1 | tr -d '[:space:]')"
+          if [ -z "${BASE_IMAGE}" ]; then
+            echo "::error::base-image.txt has no usable image reference"
+            exit 1
+          fi
+          echo "Base image: ${BASE_IMAGE}"
+          echo "BASE_IMAGE=${BASE_IMAGE}" >> "${GITHUB_ENV}"
 
       # -----------------------------------------------------------------
       # Pre-flight: verify every app repo + branch in apps.json is

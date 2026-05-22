@@ -122,8 +122,11 @@ the orphaned MariaDB database.
   (RAM + swap) for your workload; see [Resource sizing](#resource-sizing).
 - DNS pointing your site name (e.g. `erpnext.example.com`) at the host
 - A reverse proxy in front (Nginx / Caddy / Traefik) terminating TLS and
-  forwarding to **`127.0.0.1:9090`** — the compose stack binds the frontend
-  to loopback only so it can never be reached over plain HTTP from outside.
+  forwarding to **`127.0.0.1:9090`** — by default the compose stack binds the
+  frontend to loopback only so it can never be reached over plain HTTP from
+  outside. To put a **CDN/WAF** in front instead (it terminates TLS), set
+  `FRONTEND_PORT_BINDING=0.0.0.0:80:8080` in `.env` to expose HTTP on port 80
+  — and firewall that port to your CDN's IP ranges (see `.env.example`).
 
 ### 2. Get the deployment files
 
@@ -422,7 +425,7 @@ docker inspect ghcr.io/erenaydin-t/myerpnext:v16.18.0 \
 - [ ] `.env` contains long random `DB_ROOT_PASSWORD` and `ADMIN_PASSWORD` (not the defaults)
 - [ ] `.env` is `chmod 600` and **not** committed to git
 - [ ] `IMAGE_TAG` pinned to an exact semver, not `v16-latest`
-- [ ] Frontend port is loopback-only (`127.0.0.1:9090:8080` — already set in compose)
+- [ ] Frontend port binding is correct for your ingress: loopback (default `127.0.0.1:9090:8080`) behind a host reverse proxy, OR `0.0.0.0:80:8080` via `FRONTEND_PORT_BINDING` with the host firewall locked to your CDN's IPs
 - [ ] TLS terminated at the reverse proxy
 - [ ] Redis ports are **not** exposed publicly (no `ports:` block on either redis service — leave it that way)
 - [ ] App slugs verified with `./scripts/verify-app-slugs.sh` against the built image

@@ -247,8 +247,15 @@ services:
       CLIENT_MAX_BODY_SIZE: 50m
     volumes: *erpnext_volumes
     ports:
-      # Loopback-only — your reverse proxy on the host terminates TLS.
-      - "9090:8080"
+      # How the frontend (internal nginx, container port 8080) is published on
+      # the host. Driven by FRONTEND_PORT_BINDING in .env so the same compose
+      # file works for both deployment styles:
+      #   - Default "127.0.0.1:9090:8080" — loopback only; a host-side reverse
+      #     proxy (Nginx/Caddy/Traefik) terminates TLS and forwards to :9090.
+      #   - "0.0.0.0:80:8080" (or "80:8080") — public HTTP on port 80, for
+      #     putting a CDN/WAF in front that terminates TLS. See the security
+      #     note in .env.example before exposing the origin directly.
+      - "${FRONTEND_PORT_BINDING:-127.0.0.1:9090:8080}"
     depends_on:
       backend:
         condition: service_healthy

@@ -114,7 +114,11 @@ docker compose exec -T backend bench --site "${SITE_NAME}" migrate
 #    redis-cache is a pure cache (DocType metadata / hooks / website
 #    fragments), so flushing it is safe and also clears the stale metadata.
 echo "==> [6/7] Restoring pre-built assets and clearing caches..."
-docker compose exec -T backend sh -c 'rm -rf sites/assets && cp -a /home/frappe/frappe-bench/assets-dist sites/assets'
+# Clear the CONTENTS of sites/assets, not the directory itself: sites/assets
+# may be (or sit under) a mounted volume, and `rm -rf sites/assets` then fails
+# with EBUSY ("Device or resource busy"), skipping the copy and leaving the
+# old assets.json in place. `assets-dist/.` copies the contents (incl. dotfiles).
+docker compose exec -T backend sh -c 'rm -rf sites/assets/* && cp -a /home/frappe/frappe-bench/assets-dist/. sites/assets/'
 docker compose exec -T redis-cache redis-cli FLUSHALL
 docker compose exec -T backend bench --site "${SITE_NAME}" clear-cache
 docker compose exec -T backend bench --site "${SITE_NAME}" clear-website-cache

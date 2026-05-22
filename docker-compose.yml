@@ -158,8 +158,8 @@ services:
       - >
         set -e;
         echo "[bootstrap] Restoring pre-built assets from image...";
-        rm -rf sites/assets;
-        cp -a /home/frappe/frappe-bench/assets-dist sites/assets;
+        rm -rf sites/assets/*;
+        cp -a /home/frappe/frappe-bench/assets-dist/. sites/assets/;
         echo "[bootstrap] Flushing cached asset manifest from Redis...";
         /home/frappe/frappe-bench/env/bin/python -c "import json,redis; redis.from_url(json.load(open('sites/common_site_config.json'))['redis_cache']).flushall()" || echo "[bootstrap] WARNING: could not flush cache Redis";
         echo "[bootstrap] Clearing Frappe metadata cache...";

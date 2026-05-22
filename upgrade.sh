@@ -13,9 +13,9 @@
 #   3. (re)run configurator with new image
 #   4. start backend with new image, wait for /api/method/ping
 #   5. run `bench migrate`
-#   6. rebuild assets + clear caches (bootstrap equivalent — needed
-#      because sites/assets is volume-persistent and Redis cache holds
-#      stale DocType/hooks after a schema or hook change)
+#   6. restore image's pre-built assets + clear caches (bootstrap
+#      equivalent — needed because sites/assets is volume-persistent and
+#      Redis cache holds stale DocType/hooks after a schema or hook change)
 #   7. restart workers / scheduler / websocket / frontend with new image
 # ---------------------------------------------------------------------------
 
@@ -96,14 +96,26 @@ echo "    backend is healthy."
 echo "==> [5/7] Running bench migrate on ${SITE_NAME}..."
 docker compose exec -T backend bench --site "${SITE_NAME}" migrate
 
-# 6. Rebuild assets + clear caches.
-#    bench build --force is mandatory after every image upgrade because
-#    sites/assets/ lives on the persistent `sites` volume and otherwise
-#    keeps the old image's bundles.
-#    clear-cache + clear-website-cache flush stale DocType metadata /
-#    hooks / website fragments from Redis.
-echo "==> [6/7] Rebuilding assets and clearing caches..."
-docker compose exec -T backend bench build --force
+# 6. Restore the image's pre-built assets + clear caches.
+#    DO NOT run `bench build` here. The bundle files live per-container in
+#    apps/<app>/public/dist (NOT in the shared `sites` volume — sites/assets
+#    only holds symlinks + assets.json). `bench build` in the backend would
+#    rewrite only the backend's bundles + the shared assets.json, while the
+#    frontend (which actually serves /assets) keeps the old bundles — so
+#    nginx 404s every freshly-hashed file ("MIME type text/html").
+#    Instead restore the assets baked into the image (identical in both
+#    containers) so assets.json and what the frontend serves stay in sync.
+#
+#    Then FLUSH the cache Redis. This is critical: Frappe caches the asset
+#    manifest in a global Redis key "assets_json" that `bench clear-cache`
+#    does NOT clear. Without flushing it, the backend keeps rendering the
+#    PREVIOUS image's bundle hashes from cache — so every CSS/JS 404s with
+#    "MIME type text/html" even though the files on disk are correct.
+#    redis-cache is a pure cache (DocType metadata / hooks / website
+#    fragments), so flushing it is safe and also clears the stale metadata.
+echo "==> [6/7] Restoring pre-built assets and clearing caches..."
+docker compose exec -T backend sh -c 'rm -rf sites/assets && cp -a /home/frappe/frappe-bench/assets-dist sites/assets'
+docker compose exec -T redis-cache redis-cli FLUSHALL
 docker compose exec -T backend bench --site "${SITE_NAME}" clear-cache
 docker compose exec -T backend bench --site "${SITE_NAME}" clear-website-cache
 

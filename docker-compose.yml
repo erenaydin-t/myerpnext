@@ -144,9 +144,11 @@ services:
   #     the image's pre-built assets on every boot. We RESTORE them with a
   #     fast copy from /assets-dist (baked into the image by the Dockerfile)
   #     instead of running `bench build` — no rebuild, no OOM, near-instant.
-  #   - Redis caches DocType metadata + hooks. After an image upgrade
-  #     (new hooks / fields / patches) the in-Redis snapshot is stale
-  #     until explicitly cleared.
+  #   - Redis caches DocType metadata + hooks AND the asset manifest under
+  #     a global key "assets_json" that `bench clear-cache` does NOT clear.
+  #     We FLUSH the cache Redis so the backend re-reads the freshly
+  #     restored manifest; otherwise it renders the previous image's bundle
+  #     hashes and every CSS/JS 404s ("MIME type text/html").
   # ---------------------------------------------------------------------
   bootstrap:
     <<: *erpnext_image
@@ -158,6 +160,8 @@ services:
         echo "[bootstrap] Restoring pre-built assets from image...";
         rm -rf sites/assets;
         cp -a /home/frappe/frappe-bench/assets-dist sites/assets;
+        echo "[bootstrap] Flushing cached asset manifest from Redis...";
+        /home/frappe/frappe-bench/env/bin/python -c "import json,redis; redis.from_url(json.load(open('sites/common_site_config.json'))['redis_cache']).flushall()" || echo "[bootstrap] WARNING: could not flush cache Redis";
         echo "[bootstrap] Clearing Frappe metadata cache...";
         bench --site "$$SITE_NAME" clear-cache;
         echo "[bootstrap] Clearing website cache...";
@@ -244,7 +248,7 @@ services:
     volumes: *erpnext_volumes
     ports:
       # Loopback-only — your reverse proxy on the host terminates TLS.
-      - "127.0.0.1:9090:8080"
+      - "9090:8080"
     depends_on:
       backend:
         condition: service_healthy

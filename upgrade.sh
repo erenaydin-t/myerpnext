@@ -16,7 +16,8 @@
 #   6. restore image's pre-built assets + clear caches (bootstrap
 #      equivalent — needed because sites/assets is volume-persistent and
 #      Redis cache holds stale DocType/hooks after a schema or hook change)
-#   7. restart workers / scheduler / websocket / frontend with new image
+#   7. recreate ALL services with new image (load every package), then
+#      re-restore assets + flush cache and restart backend + frontend
 # ---------------------------------------------------------------------------
 
 set -euo pipefail
@@ -123,13 +124,23 @@ docker compose exec -T redis-cache redis-cli FLUSHALL
 docker compose exec -T backend bench --site "${SITE_NAME}" clear-cache
 docker compose exec -T backend bench --site "${SITE_NAME}" clear-website-cache
 
-# 7. Restart workers, scheduler, websocket, frontend with new image.
-#    These all reload code + re-read sites/assets/, so they must come
-#    AFTER step 6 — otherwise workers run new code against stale cache
-#    and frontend serves old bundles.
-echo "==> [7/7] Restarting workers, scheduler, websocket, frontend..."
-docker compose up -d --no-deps --force-recreate \
-  queue-long queue-short scheduler websocket frontend
+# 7. Recreate ALL services with the new image so every package/service is
+#    loaded (db, redis, configurator, create-site, bootstrap, backend,
+#    workers, scheduler, websocket, frontend). The one-shots are idempotent
+#    (configurator/create-site are no-ops on an existing site; bootstrap
+#    re-restores assets). These all reload code + re-read sites/assets/, so
+#    they must come AFTER step 6 — otherwise workers run new code against
+#    stale cache and frontend serves old bundles.
+echo "==> [7/7] Recreating all services with the new image..."
+docker compose up -d --force-recreate
+
+# After the full recreate, re-restore the image's pre-built assets and flush
+# the cache Redis once more, then restart backend + frontend so they re-read
+# the freshly restored asset manifest (see step 6 for why this is required).
+echo "==> Re-restoring assets, flushing cache, restarting backend + frontend..."
+docker compose exec -T backend sh -c 'rm -rf sites/assets/* && cp -a /home/frappe/frappe-bench/assets-dist/. sites/assets/'
+docker compose exec -T redis-cache redis-cli FLUSHALL
+docker compose restart backend frontend
 
 echo
 echo "==> Upgrade complete."

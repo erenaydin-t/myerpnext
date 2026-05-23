@@ -104,7 +104,7 @@ RUN bench get-app --branch develop --skip-assets https://github.com/frappe/lendi
 RUN bench get-app --skip-assets https://github.com/sfarbod/ERPNext_Extensions && \
     bench get-app --skip-assets https://github.com/sfarbod/persian_calendar_ERPNext && \
     bench get-app --skip-assets https://github.com/The-Commit-Company/raven && \
-    bench get-app --skip-assets https://github.com/erenaydin-t/dms && \
+    bench get-app --branch v0.6.0 --skip-assets https://github.com/erenaydin-t/dms && \
     bench get-app --skip-assets https://github.com/erenaydin-t/logto_bridge.git
 
 # Modern Frappe apps (crm, helpdesk, wiki, insights, lms) have vite

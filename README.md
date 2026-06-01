@@ -2,7 +2,7 @@
 
 Production Docker deployment for ERPNext **version-16** with a curated set of
 Frappe and third-party apps. The image is built by GitHub Actions, published to
-GHCR with the exact ERPNext semver as its tag (e.g. `v16.18.0`), and consumed
+GHCR with the exact ERPNext semver as its tag (e.g. `v16.20.0`), and consumed
 on the server with `docker compose up -d` for the first boot and `./upgrade.sh`
 for every subsequent upgrade.
 

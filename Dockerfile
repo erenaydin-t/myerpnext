@@ -145,6 +145,7 @@ RUN bench build --force
 
 # Stash the freshly built assets OUTSIDE the sites/ tree.
 #
+#
 # At runtime the `sites` named volume is mounted over /sites, so it MASKS the
 # image's pre-built sites/assets on every boot after the first. Keeping a copy
 # here (frappe-bench/ is part of the image, never volume-mounted) lets the

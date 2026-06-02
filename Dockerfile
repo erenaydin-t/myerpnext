@@ -44,7 +44,6 @@ RUN apt-get update && \
 
 # ---------------------------------------------------------------------------
 # Pin pnpm to 9.15.4 via corepack.
-#
 # Why: modern Frappe Vue apps (wiki, crm, helpdesk, drive, lms, insights)
 # pin `packageManager: pnpm@11.x` in their package.json. Corepack honors
 # that and downloads pnpm 11 to run `bench get-app -> yarn install`. pnpm

@@ -13,6 +13,11 @@ on:
   # Manual trigger — use this to force a rebuild (e.g. to pick up upstream
   # patches on a rolling tag without editing base-image.txt).
   workflow_dispatch:
+    inputs:
+      no_cache:
+        description: "Build with no cache (re-clone every app, full rebuild). Use to pick up custom-app commits without bumping APPS_CACHE_BUST."
+        type: boolean
+        default: false
 
 env:
   REGISTRY: ghcr.io
@@ -156,6 +161,7 @@ jobs:
             ERPNEXT_VERSION=${{ steps.erpnext.outputs.version }}
             BUILD_DATE=${{ github.event.repository.updated_at }}
             VCS_REF=${{ github.sha }}
+          no-cache: ${{ github.event_name == 'workflow_dispatch' && inputs.no_cache }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

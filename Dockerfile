@@ -99,8 +99,20 @@ RUN bench get-app --branch develop --skip-assets https://github.com/frappe/lendi
 # tradeoff is not worth blocking the build. To re-enable once upstream
 # stabilises, add it back here and to apps.json.
 
+# Cache-bust knob for the custom-app layer below.
+# Docker caches the `bench get-app` RUN by its instruction text, so pushing
+# new commits to a custom app (ERPNext_Extensions, persian_calendar, raven,
+# dms, logto_bridge, visitor_app) is NOT picked up on rebuild — the stale
+# layer (incl. the type=gha cache) is reused. Bump this value (any change)
+# and push to force a fresh clone of every Group 3 app and a fresh
+# `bench build`. Editing the Dockerfile also satisfies the workflow's path
+# filter, so the same push triggers the CI rebuild. Groups 1 & 2 (upstream
+# Frappe apps) stay cached.
+ARG APPS_CACHE_BUST=1
+
 # Group 3: Third-party / custom apps
-RUN bench get-app --skip-assets https://github.com/sfarbod/ERPNext_Extensions && \
+RUN echo "custom-app cache bust: ${APPS_CACHE_BUST}" && \
+    bench get-app --skip-assets https://github.com/sfarbod/ERPNext_Extensions && \
     bench get-app --skip-assets https://github.com/sfarbod/persian_calendar_ERPNext && \
     bench get-app --skip-assets https://github.com/The-Commit-Company/raven && \
     bench get-app --skip-assets https://github.com/erenaydin-t/dms && \

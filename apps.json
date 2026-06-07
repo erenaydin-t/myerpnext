@@ -54,5 +54,9 @@
   {
     "url": "https://github.com/erenaydin-t/logto_bridge",
     "branch": "main"
+  },
+  {
+    "url": "https://github.com/erenaydin-t/visitor_app",
+    "branch": "main"
   }
 ]

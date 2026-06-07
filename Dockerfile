@@ -104,7 +104,8 @@ RUN bench get-app --skip-assets https://github.com/sfarbod/ERPNext_Extensions &&
     bench get-app --skip-assets https://github.com/sfarbod/persian_calendar_ERPNext && \
     bench get-app --skip-assets https://github.com/The-Commit-Company/raven && \
     bench get-app --skip-assets https://github.com/erenaydin-t/dms && \
-    bench get-app --skip-assets https://github.com/erenaydin-t/logto_bridge.git
+    bench get-app --skip-assets https://github.com/erenaydin-t/logto_bridge.git &&\
+    bench get-app --skip-assets https://github.com/erenaydin-t/visitor_app
 
 # Modern Frappe apps (crm, helpdesk, wiki, insights, lms) have vite
 # frontends that statically import values from sites/common_site_config.json

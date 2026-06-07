@@ -123,6 +123,7 @@ services:
           --install-app raven \
           --install-app dms \
           --install-app logto_bridge \
+          --install-app visitor_app \
           --set-default;
     environment:
       SITE_NAME: ${SITE_NAME:-erpnext.example.com}

@@ -112,7 +112,7 @@ ARG APPS_CACHE_BUST=1
 
 # Group 3: Third-party / custom apps
 RUN echo "custom-app cache bust: ${APPS_CACHE_BUST}" && \
-    #bench get-app --skip-assets https://github.com/sfarbod/ERPNext_Extensions && \
+    bench get-app --skip-assets https://github.com/sfarbod/ERPNext_Extensions && \
     bench get-app --skip-assets https://github.com/sfarbod/persian_calendar_ERPNext && \
     bench get-app --skip-assets https://github.com/The-Commit-Company/raven && \
     bench get-app --skip-assets https://github.com/erenaydin-t/dms && \

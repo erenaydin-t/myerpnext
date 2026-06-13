@@ -134,31 +134,11 @@ docker compose exec -T backend bench --site "${SITE_NAME}" clear-website-cache
 echo "==> [7/7] Recreating all services with the new image..."
 docker compose up -d --force-recreate
 
-# After the full recreate the `bootstrap` one-shot re-lays sites/assets as
-# SYMLINKS (sites/assets/<app> -> apps/<app>/<app>/public). The frontend nginx
-# 404s submodule CSS/JS (hrms, crm, wiki, insights, lms, helpdesk, payments,
-# telephony, lending, raven, persian_calendar, ...) when those entries are
-# symlinks. So we rebuild sites/assets here with the REAL files: restore
-# assets.json + the baked tree from assets-dist, then replace every app entry
-# with a dereferenced copy of its public/ dir onto the shared `sites` volume so
-# nginx serves the bundles directly. Looping over `ls apps` covers every
-# installed app — no hardcoded list to drift. Then flush the cache Redis and
-# restart backend + frontend so they re-read the rebuilt asset manifest.
-echo "==> Rebuilding sites/assets with real per-app files..."
-docker compose exec -T backend bash -c '
-  set -e
-  cd /home/frappe/frappe-bench
-  rm -rf sites/assets/*
-  cp -a assets-dist/. sites/assets/
-  for app in $(ls -1 apps); do
-    pub="apps/$app/$app/public"
-    [ -d "$pub" ] || continue
-    echo "    [assets] $app"
-    rm -rf "sites/assets/$app"
-    cp -aL "$pub" "sites/assets/$app"
-  done
-'
-echo "==> Flushing cache Redis and restarting backend + frontend..."
+# After the full recreate, re-restore the image's pre-built assets and flush
+# the cache Redis once more, then restart backend + frontend so they re-read
+# the freshly restored asset manifest (see step 6 for why this is required).
+echo "==> Re-restoring assets, flushing cache, restarting backend + frontend..."
+docker compose exec -T backend sh -c 'rm -rf sites/assets/* && cp -a /home/frappe/frappe-bench/assets-dist/. sites/assets/'
 docker compose exec -T redis-cache redis-cli FLUSHALL
 docker compose restart backend frontend
 

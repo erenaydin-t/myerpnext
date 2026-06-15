@@ -33,7 +33,7 @@ x-erpnext-image: &erpnext_image
 
 x-erpnext-volumes: &erpnext_volumes
   - sites:/home/frappe/frappe-bench/sites
-  - assets:/home/frappe/frappe-bench/sites/assets_volume
+  - assets:/home/frappe/frappe-bench/assets
   - logs:/home/frappe/frappe-bench/logs
 
 x-backend-env: &backend_env

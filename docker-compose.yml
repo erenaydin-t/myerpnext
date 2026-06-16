@@ -124,6 +124,7 @@ services:
           --install-app dms \
           --install-app logto_bridge \
           --install-app visitor_app \
+          --install-app office_automation \
           --set-default;
     environment:
       SITE_NAME: ${SITE_NAME:-erpnext.example.com}

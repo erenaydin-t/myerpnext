@@ -108,7 +108,7 @@ RUN bench get-app --branch develop --skip-assets https://github.com/frappe/lendi
 # `bench build`. Editing the Dockerfile also satisfies the workflow's path
 # filter, so the same push triggers the CI rebuild. Groups 1 & 2 (upstream
 # Frappe apps) stay cached.
-ARG APPS_CACHE_BUST=1
+ARG APPS_CACHE_BUST=2
 
 # Group 3: Third-party / custom apps
 RUN echo "custom-app cache bust: ${APPS_CACHE_BUST}" && \
@@ -117,7 +117,8 @@ RUN echo "custom-app cache bust: ${APPS_CACHE_BUST}" && \
     bench get-app --skip-assets https://github.com/The-Commit-Company/raven && \
     bench get-app --skip-assets https://github.com/erenaydin-t/dms && \
     bench get-app --skip-assets https://github.com/erenaydin-t/logto_bridge.git && \
-    bench get-app --skip-assets https://github.com/erenaydin-t/visitor_app
+    bench get-app --skip-assets https://github.com/erenaydin-t/visitor_app && \
+    bench get-app --skip-assets https://github.com/erenaydin-t/office_automation
 
 # Modern Frappe apps (crm, helpdesk, wiki, insights, lms) have vite
 # frontends that statically import values from sites/common_site_config.json

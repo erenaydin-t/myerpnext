@@ -81,8 +81,7 @@ RUN printf '%s\n' \
 # Group 1: Frappe-maintained apps pinned to a version-16 branch/release.
 # These stay put across weekly cron rebuilds (pinned ref, not HEAD).
 RUN bench get-app --branch version-16 --skip-assets https://github.com/frappe/payments && \
-    bench get-app --branch version-16 --skip-assets https://github.com/frappe/hrms && \
-    bench get-app --branch version-16 --skip-assets https://github.com/frappe/lending
+    bench get-app --branch version-16 --skip-assets https://github.com/frappe/hrms
 
 # Group 2: Independent Frappe-maintained apps (own release cadence).
 # These do not publish version-XX branches — they roll forward from

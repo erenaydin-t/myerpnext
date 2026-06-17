@@ -30,6 +30,15 @@ x-erpnext-image: &erpnext_image
   networks: [ frappe_network ]
   restart: unless-stopped
   logging: *default_logging
+  # Give containers explicit public DNS resolvers. The bridge network already
+  # routes to the internet via NAT, but on hosts where Docker's embedded DNS
+  # can't reach the host resolver (systemd-resolved / VPN / corporate DNS),
+  # name lookups fail and the app "has no internet" (email, OAuth/Logto,
+  # webhooks, currency/exchange APIs). Override DNS_PRIMARY / DNS_SECONDARY
+  # in .env if your network requires specific resolvers.
+  dns:
+    - ${DNS_PRIMARY:-1.1.1.1}
+    - ${DNS_SECONDARY:-8.8.8.8}
 
 x-erpnext-volumes: &erpnext_volumes
   - sites:/home/frappe/frappe-bench/sites

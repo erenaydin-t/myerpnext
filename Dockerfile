@@ -84,14 +84,17 @@ RUN bench get-app --branch version-16 --skip-assets https://github.com/frappe/pa
     bench get-app --branch version-16 --skip-assets https://github.com/frappe/hrms
 
 # Group 2: Independent Frappe-maintained apps (own release cadence).
-# These do not publish version-XX branches — they roll forward from
-# develop / main. Weekly cron rebuilds will pull whatever HEAD is.
-RUN bench get-app --branch main    --skip-assets https://github.com/frappe/crm && \
-    bench get-app --branch develop --skip-assets https://github.com/frappe/telephony && \
-    bench get-app --skip-assets https://github.com/frappe/helpdesk && \
-    bench get-app --skip-assets https://github.com/frappe/lms && \
-    bench get-app --skip-assets https://github.com/frappe/insights && \
-    bench get-app --skip-assets https://github.com/frappe/wiki
+# Each is pinned to its stable line — these repos default to `develop`
+# (HEAD), so WITHOUT an explicit --branch, get-app would silently ship the
+# dev branch. Pin explicitly so weekly cron rebuilds track the intended ref:
+#   crm/helpdesk/lms -> main, insights -> version-3, wiki -> develop (RC),
+#   telephony -> develop (no stable branch published upstream).
+RUN bench get-app --branch main       --skip-assets https://github.com/frappe/crm && \
+    bench get-app --branch develop    --skip-assets https://github.com/frappe/telephony && \
+    bench get-app --branch main       --skip-assets https://github.com/frappe/helpdesk && \
+    bench get-app --branch main       --skip-assets https://github.com/frappe/lms && \
+    bench get-app --branch version-3  --skip-assets https://github.com/frappe/insights && \
+    bench get-app --branch develop    --skip-assets https://github.com/frappe/wiki
 # NOTE: frappe/drive intentionally NOT installed here. Drive ships a yarn
 # postinstall hook (scripts/install-pnpm.sh) that hard-pins pnpm 11 via
 # corepack, overriding our global pin and reintroducing the
@@ -114,7 +117,7 @@ ARG APPS_CACHE_BUST=2
 RUN echo "custom-app cache bust: ${APPS_CACHE_BUST}" && \
     bench get-app --skip-assets https://github.com/sfarbod/ERPNext_Extensions && \
     bench get-app --skip-assets https://github.com/sfarbod/persian_calendar_ERPNext && \
-    bench get-app --skip-assets https://github.com/The-Commit-Company/raven && \
+    bench get-app --branch main --skip-assets https://github.com/The-Commit-Company/raven && \
     bench get-app --skip-assets https://github.com/erenaydin-t/dms && \
     bench get-app --skip-assets https://github.com/erenaydin-t/logto_bridge.git && \
     bench get-app --skip-assets https://github.com/erenaydin-t/visitor_app && \

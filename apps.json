@@ -25,11 +25,11 @@
   },
   {
     "url": "https://github.com/frappe/insights",
-    "branch": "main"
+    "branch": "version-3"
   },
   {
     "url": "https://github.com/frappe/wiki",
-    "branch": "master"
+    "branch": "develop"
   },
   {
     "url": "https://github.com/sfarbod/ERPNext_Extensions",

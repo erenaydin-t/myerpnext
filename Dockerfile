@@ -87,11 +87,14 @@ RUN bench get-app --branch version-16 --skip-assets https://github.com/frappe/pa
 # Each is pinned to its stable line — these repos default to `develop`
 # (HEAD), so WITHOUT an explicit --branch, get-app would silently ship the
 # dev branch. Pin explicitly so weekly cron rebuilds track the intended ref:
-#   crm/helpdesk/lms -> main, insights -> version-3, wiki -> develop (RC),
-#   telephony -> develop (no stable branch published upstream).
+#   crm/lms -> main, insights -> version-3, wiki/telephony -> develop.
+# helpdesk MUST stay on develop: its `main` branch statically imports
+# frappe/public/js/lib/posthog.js, which does NOT exist in frappe
+# version-16 — so `bench build` fails (RollupError: could not resolve
+# posthog.js). develop dropped that import and tracks frappe version-16.
 RUN bench get-app --branch main       --skip-assets https://github.com/frappe/crm && \
     bench get-app --branch develop    --skip-assets https://github.com/frappe/telephony && \
-    bench get-app --branch main       --skip-assets https://github.com/frappe/helpdesk && \
+    bench get-app --branch develop    --skip-assets https://github.com/frappe/helpdesk && \
     bench get-app --branch main       --skip-assets https://github.com/frappe/lms && \
     bench get-app --branch version-3  --skip-assets https://github.com/frappe/insights && \
     bench get-app --branch develop    --skip-assets https://github.com/frappe/wiki

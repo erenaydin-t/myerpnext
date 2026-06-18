@@ -22,7 +22,7 @@ LABEL org.opencontainers.image.title="ERPNext v16 - Custom Build" \
 #   - tesseract-ocr (+fas):  DMS OCR pipeline incl. Persian
 #   - libmagic1:             python-magic for DMS file-type detection
 #   - build-essential et al: any wheel that still needs compilation
-# --------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
 USER root
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \

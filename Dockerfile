@@ -15,7 +15,7 @@ LABEL org.opencontainers.image.title="ERPNext v16 - Custom Build" \
       org.opencontainers.image.source="https://github.com/erenaydin-t/dockererpnext" \
       io.frappe.erpnext.version="${ERPNEXT_VERSION}"
 
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
 # OS dependencies (root)
 #   - LibreOffice + fonts:   PDF rendering (print formats, exports)
 #   - poppler-utils:         pdf2image / DMS preview generation

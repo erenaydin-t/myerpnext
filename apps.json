@@ -8,6 +8,10 @@
     "branch": "version-16"
   },
   {
+    "url": "https://github.com/frappe/lending",
+    "branch": "version-16"
+  },
+  {
     "url": "https://github.com/frappe/crm",
     "branch": "main"
   },

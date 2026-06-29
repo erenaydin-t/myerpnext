@@ -121,6 +121,7 @@ services:
           --install-app payments \
           --install-app erpnext \
           --install-app hrms \
+          --install-app lending \
           --install-app crm \
           --install-app telephony \
           --install-app helpdesk \

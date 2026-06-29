@@ -8,7 +8,7 @@ ARG BUILD_DATE
 ARG VCS_REF
 
 LABEL org.opencontainers.image.title="ERPNext v16 - Custom Build" \
-      org.opencontainers.image.description="ERPNext v16 with HRMS, CRM, Helpdesk, Insights, Wiki, Drive, Raven, DMS (OCR), Persian Calendar, Logto Bridge, S3 Attachments" \
+      org.opencontainers.image.description="ERPNext v16 with HRMS, Lending, CRM, Helpdesk, Insights, Wiki, Drive, Raven, DMS (OCR), Persian Calendar, Logto Bridge, S3 Attachments" \
       org.opencontainers.image.version="${ERPNEXT_VERSION}" \
       org.opencontainers.image.created="${BUILD_DATE}" \
       org.opencontainers.image.revision="${VCS_REF}" \
@@ -81,7 +81,8 @@ RUN printf '%s\n' \
 # Group 1: Frappe-maintained apps pinned to a version-16 branch/release.
 # These stay put across weekly cron rebuilds (pinned ref, not HEAD).
 RUN bench get-app --branch version-16 --skip-assets https://github.com/frappe/payments && \
-    bench get-app --branch version-16 --skip-assets https://github.com/frappe/hrms
+    bench get-app --branch version-16 --skip-assets https://github.com/frappe/hrms && \
+    bench get-app --branch version-16 --skip-assets https://github.com/frappe/lending
 
 # Group 2: Independent Frappe-maintained apps (own release cadence).
 # Each is pinned to its stable line — these repos default to `develop`

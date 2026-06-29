@@ -134,6 +134,7 @@ services:
           --install-app logto_bridge \
           --install-app visitor_app \
           --install-app office_automation \
+          --install-app frappe_s3_attachment \
           --set-default;
     environment:
       SITE_NAME: ${SITE_NAME:-erpnext.example.com}

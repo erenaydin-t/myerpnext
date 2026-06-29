@@ -8,7 +8,7 @@ ARG BUILD_DATE
 ARG VCS_REF
 
 LABEL org.opencontainers.image.title="ERPNext v16 - Custom Build" \
-      org.opencontainers.image.description="ERPNext v16 with HRMS, CRM, Helpdesk, Insights, Wiki, Drive, Raven, DMS (OCR), Persian Calendar, Logto Bridge" \
+      org.opencontainers.image.description="ERPNext v16 with HRMS, CRM, Helpdesk, Insights, Wiki, Drive, Raven, DMS (OCR), Persian Calendar, Logto Bridge, S3 Attachments" \
       org.opencontainers.image.version="${ERPNEXT_VERSION}" \
       org.opencontainers.image.created="${BUILD_DATE}" \
       org.opencontainers.image.revision="${VCS_REF}" \
@@ -108,13 +108,14 @@ RUN bench get-app --branch main       --skip-assets https://github.com/frappe/cr
 # Cache-bust knob for the custom-app layer below.
 # Docker caches the `bench get-app` RUN by its instruction text, so pushing
 # new commits to a custom app (ERPNext_Extensions, persian_calendar, raven,
-# dms, logto_bridge, visitor_app) is NOT picked up on rebuild — the stale
+# dms, logto_bridge, visitor_app, office_automation, frappe_s3_attachment)
+# is NOT picked up on rebuild — the stale
 # layer (incl. the type=gha cache) is reused. Bump this value (any change)
 # and push to force a fresh clone of every Group 3 app and a fresh
 # `bench build`. Editing the Dockerfile also satisfies the workflow's path
 # filter, so the same push triggers the CI rebuild. Groups 1 & 2 (upstream
 # Frappe apps) stay cached.
-ARG APPS_CACHE_BUST=2
+ARG APPS_CACHE_BUST=3
 
 # Group 3: Third-party / custom apps
 RUN echo "custom-app cache bust: ${APPS_CACHE_BUST}" && \
@@ -124,7 +125,8 @@ RUN echo "custom-app cache bust: ${APPS_CACHE_BUST}" && \
     bench get-app --skip-assets https://github.com/erenaydin-t/dms && \
     bench get-app --skip-assets https://github.com/erenaydin-t/logto_bridge.git && \
     bench get-app --skip-assets https://github.com/erenaydin-t/visitor_app && \
-    bench get-app --skip-assets https://github.com/erenaydin-t/office_automation
+    bench get-app --skip-assets https://github.com/erenaydin-t/office_automation && \
+    bench get-app --branch main --skip-assets https://github.com/erenaydin-t/frappe-attachments-s3
 
 # Modern Frappe apps (crm, helpdesk, wiki, insights, lms) have vite
 # frontends that statically import values from sites/common_site_config.json

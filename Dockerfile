@@ -115,7 +115,7 @@ RUN bench get-app --branch main       --skip-assets https://github.com/frappe/cr
 # `bench build`. Editing the Dockerfile also satisfies the workflow's path
 # filter, so the same push triggers the CI rebuild. Groups 1 & 2 (upstream
 # Frappe apps) stay cached.
-ARG APPS_CACHE_BUST=7
+ARG APPS_CACHE_BUST=8
 
 # Group 3: Third-party / custom apps
 RUN echo "custom-app cache bust: ${APPS_CACHE_BUST}" && \

@@ -4,12 +4,16 @@ on:
   push:
     branches: [ "main" ]
     # Only rebuild when something that actually affects the image changes:
-    #   - Dockerfile      : the image recipe / installed apps changed
-    #   - base-image.txt  : a new upstream ERPNext version was requested
+    #   - Dockerfile        : the image recipe / installed apps changed
+    #   - base-image.txt    : a new upstream ERPNext version was requested
+    #   - this workflow     : the build steps themselves changed — without it,
+    #                         a fix to a failing build lands with no rebuild
+    #                         and the failure looks unaddressed.
     # Pushes that only touch docs, compose, scripts, etc. do NOT rebuild.
     paths:
       - "Dockerfile"
       - "base-image.txt"
+      - ".github/workflows/docker-build.yml"
   # Manual trigger — use this to force a rebuild (e.g. to pick up upstream
   # patches on a rolling tag without editing base-image.txt).
   workflow_dispatch:

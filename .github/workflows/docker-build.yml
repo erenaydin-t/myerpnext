@@ -67,10 +67,17 @@ jobs:
 
           FAILED=()
           while IFS=$'\t' read -r url branch; do
-            target="HEAD"
-            [ -n "${branch}" ] && target="refs/heads/${branch}"
-            if ! git ls-remote --exit-code "${url}" "${target}" >/dev/null 2>&1; then
-              FAILED+=("${url} (${branch:-default})")
+            if [ -z "${branch}" ]; then
+              # No pin: just prove the repo resolves at all.
+              git ls-remote --exit-code "${url}" HEAD >/dev/null 2>&1 \
+                || FAILED+=("${url} (default)")
+              continue
+            fi
+            # A pin may be a branch OR a tag (helpdesk is pinned to a release
+            # tag — see the Dockerfile), so accept either ref namespace.
+            if ! git ls-remote --exit-code "${url}" \
+                   "refs/heads/${branch}" "refs/tags/${branch}" >/dev/null 2>&1; then
+              FAILED+=("${url} (${branch})")
             fi
           done < <(jq -r '.[] | [.url, (.branch // "")] | @tsv' apps.json)
 

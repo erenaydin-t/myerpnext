@@ -31,7 +31,10 @@ RUN apt-get update && \
         default-libmysqlclient-dev \
         libreoffice-core \
         libreoffice-writer \
+        libreoffice-calc \
+        libreoffice-draw \
         fonts-dejavu \
+        fonts-liberation \
         libmagic1 \
         poppler-utils \
         tesseract-ocr \
@@ -88,13 +91,18 @@ RUN bench get-app --branch version-16 --skip-assets https://github.com/frappe/pa
 # (HEAD), so WITHOUT an explicit --branch, get-app would silently ship the
 # dev branch. Pin explicitly so weekly cron rebuilds track the intended ref:
 #   crm/lms -> main, insights -> version-3, wiki/telephony -> develop.
-# helpdesk MUST stay on develop: its `main` branch statically imports
-# frappe/public/js/lib/posthog.js, which does NOT exist in frappe
-# version-16 — so `bench build` fails (RollupError: could not resolve
-# posthog.js). develop dropped that import and tracks frappe version-16.
+# helpdesk MUST stay on a TAG — neither moving branch builds against frappe
+# version-16: `main` statically imports frappe/public/js/lib/posthog.js, and
+# since 2026-07-26 `develop` imports @framework/ui, which resolves to
+# apps/frappe/ui — a directory that exists only on frappe `develop`. Either
+# way `bench build` dies with a RollupError ("could not resolve posthog.js" /
+# "failed to resolve import @framework/ui/components/Link/index.ts"). v1.28.1
+# (2026-07-23) predates the @framework/ui move and carries no posthog import;
+# verified building clean against frappe/erpnext:version-16. Before bumping
+# this tag, check the new one for both imports.
 RUN bench get-app --branch main       --skip-assets https://github.com/frappe/crm && \
     bench get-app --branch develop    --skip-assets https://github.com/frappe/telephony && \
-    bench get-app --branch develop    --skip-assets https://github.com/frappe/helpdesk && \
+    bench get-app --branch v1.28.1    --skip-assets https://github.com/frappe/helpdesk && \
     bench get-app --branch main       --skip-assets https://github.com/frappe/lms && \
     bench get-app --branch version-3  --skip-assets https://github.com/frappe/insights && \
     bench get-app --branch develop    --skip-assets https://github.com/frappe/wiki
@@ -115,7 +123,7 @@ RUN bench get-app --branch main       --skip-assets https://github.com/frappe/cr
 # `bench build`. Editing the Dockerfile also satisfies the workflow's path
 # filter, so the same push triggers the CI rebuild. Groups 1 & 2 (upstream
 # Frappe apps) stay cached.
-ARG APPS_CACHE_BUST=12
+ARG APPS_CACHE_BUST=13
 
 # Group 3: Third-party / custom apps
 RUN echo "custom-app cache bust: ${APPS_CACHE_BUST}" && \

@@ -22,6 +22,9 @@ LABEL org.opencontainers.image.title="ERPNext v16 - Custom Build" \
 #   - tesseract-ocr (+fas):  DMS OCR pipeline incl. Persian
 #   - libmagic1:             python-magic for DMS file-type detection
 #   - build-essential et al: any wheel that still needs compilation
+#   - fontconfig:            fc-match/fc-list — DMS resolves its configured
+#                            document font through these at render time
+#   - unzip:                 unpacking the Vazirmatn release below
 # ----------------------------------------------------------------------------
 USER root
 RUN apt-get update && \
@@ -35,6 +38,9 @@ RUN apt-get update && \
         libreoffice-draw \
         fonts-dejavu \
         fonts-liberation \
+        fontconfig \
+        unzip \
+        curl \
         libmagic1 \
         poppler-utils \
         tesseract-ocr \
@@ -44,6 +50,59 @@ RUN apt-get update && \
         libssl-dev && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
+
+# -------------------------------------------------------------------------------
+# Vazirmatn — the standard Persian font for DMS document generation
+#
+# DMS enforces one font family across every generated .docx/.xlsx/.vsdx and the
+# PDF watermark (DMS Settings -> Document Font). LibreOffice can only honour
+# that if the font is installed HERE, in the image every service runs from, so
+# the backend and the queue workers resolve it identically — a font present in
+# only one container yields output that differs by which worker took the job.
+#
+# Static TTFs only. reportlab, which draws the watermark and footer overlay,
+# cannot embed variable fonts, and LibreOffice's variable-font support is
+# uneven. The archive's misc/ variants (Farsi digits, UI, non-Latin) are
+# deliberately left out: one family, so there is never a question about which
+# one a controlled document was rendered in.
+#
+# Pinned by version AND sha256. An unpinned font download would let the
+# rendered appearance of an already-approved GMP document change between image
+# builds, which is exactly what change control exists to prevent.
+#
+# The fontconfig alias below exists because the font's real family is
+# "Vazirmatn" while DMS ships "Vazir" as its default setting value — and that
+# is what people type. fc-match never fails; asked for a font that is not
+# installed it silently returns a substitute, so without the alias a setting of
+# "Vazir" would render every Persian document in DejaVu with no error anywhere.
+#
+# The build then FAILS if either name does not resolve, so a broken font layer
+# is caught here rather than discovered on a printed GMP document.
+# -------------------------------------------------------------------------------
+ARG VAZIRMATN_VERSION=33.003
+ARG VAZIRMATN_SHA256=0a9afd41967e6f57096a56a181a23f81a2b999b62f1f2a4e4b26736580854fdb
+RUN set -eux; \
+    curl -fsSL -o /tmp/vazirmatn.zip \
+      "https://github.com/rastikerdar/vazirmatn/releases/download/v${VAZIRMATN_VERSION}/vazirmatn-v${VAZIRMATN_VERSION}.zip"; \
+    echo "${VAZIRMATN_SHA256}  /tmp/vazirmatn.zip" | sha256sum -c -; \
+    mkdir -p /usr/share/fonts/truetype/vazirmatn; \
+    unzip -j -o /tmp/vazirmatn.zip 'fonts/ttf/*.ttf' -d /usr/share/fonts/truetype/vazirmatn; \
+    rm -f /tmp/vazirmatn.zip; \
+    printf '%s\n' \
+      '<?xml version="1.0"?>' \
+      '<!DOCTYPE fontconfig SYSTEM "fonts.dtd">' \
+      '<fontconfig>' \
+      '  <match target="pattern">' \
+      '    <test name="family"><string>Vazir</string></test>' \
+      '    <edit name="family" mode="assign" binding="strong"><string>Vazirmatn</string></edit>' \
+      '  </match>' \
+      '</fontconfig>' \
+      > /etc/fonts/conf.d/61-vazir-alias.conf; \
+    fc-cache -f; \
+    fc-match Vazirmatn | grep -qi vazirmatn; \
+    fc-match Vazir | grep -qi vazirmatn; \
+    echo "Vazirmatn v${VAZIRMATN_VERSION} installed:"; \
+    fc-list : family | grep -i vazirmatn | sort -u
 
 # -------------------------------------------------------------------------
 # Pin pnpm to 9.15.4 via corepack.
